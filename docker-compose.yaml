@@ -1,0 +1,78 @@
+version: "3"
+services:
+  redis:
+    image: redis
+    networks:
+      - backend-service
+    hostname: redishost
+
+  mongodb:
+    image: mongo
+    networks:
+      - backend-service
+    volumes:
+      - mongo-data:/data/db
+    hostname: mongohost
+
+  rabbit:
+    image: rabbitmq
+    networks:
+      - backend-service
+    hostname: rabbithost
+
+  prometheus:
+    image: myprometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - backend-service
+
+  client:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: mychatclient/latest
+    networks:
+      - backend-service
+    environment:
+      - PORT=8080
+      - RABBIT_URL=amqp://rabbithost:5672
+    depends_on:
+      - api
+    hostname: mainhost
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: mychatapi/latest
+    networks:
+      - backend-service
+    environment:
+      - MONGO_URL=mongodb://mongohost:27017/test
+      - RABBIT_URL=amqp://rabbithost:5672
+      - REDIS_URL=redis://redishost:6379
+    depends_on:
+      - mongodb
+      - redis
+      - rabbit
+    hostname: apihost
+
+  nginx:
+    image: mynginx
+    ports:
+      - 8082:8082
+      - 3000:3000
+      - 4000:4000
+    networks:
+      - backend-service
+    depends_on:
+      - api
+      - client
+
+networks:
+  backend-service:
+    name: backend-services
+
+volumes:
+  mongo-data:
